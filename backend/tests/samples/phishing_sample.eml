@@ -1,0 +1,24 @@
+From: security@paypa1-alerts.com
+Reply-To: harvest@evil-collector.net
+Return-Path: <bounce@spam-infra.ru>
+To: victim@example.com
+Subject: URGENT: Your PayPal account has been suspended
+Date: Mon, 14 Apr 2025 10:23:00 +0000
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+
+<html>
+<head><title>PayPal Account Verification</title></head>
+<body>
+<h1>Your account will be suspended</h1>
+<p>Verify your account immediately or your PayPal account will be permanently closed within 24 hours.</p>
+<p>Action required: Click the link below to restore access.</p>
+<a href="http://192.168.99.1/paypal/login">https://www.paypal.com/verify</a>
+<form>
+  <input type="text" name="username" placeholder="Email"/>
+  <input type="password" name="password" placeholder="Password"/>
+  <input type="submit" value="Verify Now"/>
+</form>
+<img src="http://tracker.evil.ru/pixel.gif" width="1" height="1"/>
+</body>
+</html>

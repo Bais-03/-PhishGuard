@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-phish-dark text-slate-100 font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-phish-card border border-phish-border rounded-xl p-6;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 rounded-lg
+           transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .verdict-phishing {
+    @apply text-phish-red border-phish-red;
+  }
+
+  .verdict-suspicious {
+    @apply text-phish-amber border-phish-amber;
+  }
+
+  .verdict-safe {
+    @apply text-phish-green border-phish-green;
+  }
+}
+
+/* Animated scanning bar */
+@keyframes scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+.scan-bar {
+  animation: scan 1.5s ease-in-out infinite;
+}
+
+/* Score ring animation */
+@keyframes score-fill {
+  from { stroke-dashoffset: 314; }
+  to { stroke-dashoffset: var(--target-offset); }
+}
+
+.score-ring {
+  animation: score-fill 1s ease-out forwards;
+}
