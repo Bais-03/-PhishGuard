@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
 
     # Rate limiting
-    rate_limit_per_minute: int = 10
-    rate_limit_per_day: int = 100
+    rate_limit_per_minute: int = 60
+    rate_limit_per_day: int = 1000
 
     # Playwright
     playwright_timeout_ms: int = 15000

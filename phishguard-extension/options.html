@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard Options</title>
+    <style>
+      :root {
+        --bg: #f8fafc;
+        --panel: rgba(255, 255, 255, 0.94);
+        --text: #0f172a;
+        --muted: #475569;
+        --border: #cbd5e1;
+        --accent: #0f172a;
+        --surface: #e2e8f0;
+        --shadow: rgba(15, 23, 42, 0.1);
+      }
+
+      body[data-theme="dark"] {
+        --bg: #020617;
+        --panel: rgba(15, 23, 42, 0.92);
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --border: rgba(148, 163, 184, 0.28);
+        --accent: #38bdf8;
+        --surface: rgba(30, 41, 59, 0.94);
+        --shadow: rgba(2, 6, 23, 0.45);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 32px 20px;
+        background:
+          radial-gradient(circle at top left, rgba(245, 158, 11, 0.14), transparent 34%),
+          linear-gradient(180deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 82%, #cbd5e1 18%) 100%);
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        color: var(--text);
+      }
+
+      .shell {
+        max-width: 760px;
+        margin: 0 auto;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 28px;
+        box-shadow: 0 24px 60px var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 30px;
+      }
+
+      p {
+        color: var(--muted);
+      }
+
+      .group {
+        margin-top: 24px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+
+      input[type="url"],
+      input[type="text"],
+      select,
+      textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font: inherit;
+        background: color-mix(in srgb, var(--panel) 92%, white 8%);
+        color: var(--text);
+      }
+
+      textarea {
+        min-height: 140px;
+        resize: vertical;
+      }
+
+      .inline {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 12px;
+        background: var(--accent);
+        color: white;
+        padding: 12px 16px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button.secondary {
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .status {
+        margin-top: 18px;
+        min-height: 20px;
+        color: var(--muted);
+      }
+
+      .domain-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .domain-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px 14px;
+        background: color-mix(in srgb, var(--panel) 92%, var(--surface) 8%);
+      }
+
+      .domain-item span {
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <h1>PhishGuard Options</h1>
+      <p>Configure how the extension talks to your FastAPI backend and how warnings appear.</p>
+
+      <section class="group">
+        <label class="inline">
+          <input id="autoScan" type="checkbox">
+          <span>Enable automatic scanning on every navigation</span>
+        </label>
+      </section>
+
+      <section class="group">
+        <label for="warningStyle">Warning style</label>
+        <select id="warningStyle">
+          <option value="banner">Banner (top of page)</option>
+          <option value="toast">Toast (corner popup)</option>
+          <option value="notification">System Notification</option>
+          <option value="badge">Badge only</option>
+        </select>
+      </section>
+
+      <section class="group">
+        <label for="themePreference">Theme</label>
+        <select id="themePreference">
+          <option value="system">Use system theme</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </section>
+
+      <section class="group">
+        <label for="backendUrl">Backend URL</label>
+        <input id="backendUrl" type="url" placeholder="http://localhost:8000">
+      </section>
+
+      <section class="group">
+        <label for="domainInput">Whitelist domains</label>
+        <div class="row">
+          <input id="domainInput" type="text" placeholder="example.com">
+          <button id="addDomainButton" type="button">Add</button>
+        </div>
+        <div id="domainList" class="domain-list"></div>
+      </section>
+
+      <section class="group">
+        <label for="settingsBlob">Export / import settings JSON</label>
+        <textarea id="settingsBlob" spellcheck="false"></textarea>
+      </section>
+
+      <div class="actions">
+        <button id="saveButton" type="button">Save settings</button>
+        <button id="clearCacheButton" class="secondary" type="button">Clear cache</button>
+        <button id="exportButton" class="secondary" type="button">Export settings</button>
+        <button id="importButton" class="secondary" type="button">Import settings</button>
+        <button id="exportWhitelistButton" class="secondary" type="button">Export whitelist</button>
+        <button id="importWhitelistButton" class="secondary" type="button">Import whitelist</button>
+      </div>
+
+      <div class="status" id="status"></div>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

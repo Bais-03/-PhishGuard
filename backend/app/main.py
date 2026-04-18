@@ -7,7 +7,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -17,6 +16,11 @@ from app.core.redis_client import get_redis, close_redis, cache_stats
 from app.core.pipeline import run_pipeline
 from app.detectors.layer3_apis import load_tranco_into_memory
 from app.models.schemas import EmailInput, UrlInput, AnalysisResult
+
+# NEW IMPORTS
+from app.api.routes import analyze, feedback, upload
+from app.services.queue_service import get_worker, get_analysis_queue
+
 import structlog
 
 logger = structlog.get_logger()
@@ -41,11 +45,27 @@ async def lifespan(app: FastAPI):
         logger.info("redis_connected")
     except Exception as e:
         logger.warning("redis_unavailable", error=str(e))
+    
+    # NEW: Start background worker for async processing
+    try:
+        worker = await get_worker()
+        await worker.start()
+        logger.info("background_worker_started")
+    except Exception as e:
+        logger.warning("worker_start_failed", error=str(e))
 
     app.state.start_time = time.time()
     yield
 
     # Shutdown
+    # NEW: Stop background worker
+    try:
+        worker = await get_worker()
+        await worker.stop()
+        logger.info("background_worker_stopped")
+    except Exception:
+        pass
+    
     await close_redis()
     logger.info("shutdown_complete")
 
@@ -53,7 +73,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="PhishGuard API",
     description="Production-grade phishing detection — Resonance 2K26",
-    version="1.0.0",
+    version="2.0.0",  # Updated version
     lifespan=lifespan,
 )
 
@@ -71,13 +91,12 @@ app.add_middleware(
 
 # ── Routes ────────────────────────────────────────────────────────
 
+# EXISTING ROUTES (Preserved)
 @app.post("/analyze/email", response_model=AnalysisResult, tags=["Detection"])
 @limiter.limit(f"{settings.rate_limit_per_minute}/minute")
 @limiter.limit(f"{settings.rate_limit_per_day}/day")
 async def analyze_email(request: Request, data: EmailInput):
-    """
-    Analyze a raw RFC 2822 email string for phishing indicators.
-    """
+    """Analyze a raw RFC 2822 email string for phishing indicators."""
     if not data.raw_email.strip():
         raise HTTPException(status_code=400, detail="raw_email cannot be empty")
 
@@ -89,29 +108,30 @@ async def analyze_email(request: Request, data: EmailInput):
 @limiter.limit(f"{settings.rate_limit_per_minute}/minute")
 @limiter.limit(f"{settings.rate_limit_per_day}/day")
 async def analyze_url(request: Request, data: UrlInput):
-    """
-    Analyze a URL for phishing indicators.
-    Optionally runs Playwright deep render for high-suspicion URLs.
-    """
+    """Analyze a URL for phishing indicators."""
     url = data.url.strip()
     if not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
 
-    # Quick pre-score to decide if Playwright is worth running
     result = await run_pipeline(url, use_playwright=False)
 
-    # If suspicious/phishing and Playwright enabled, do deep scan
     if result.score >= 35 and settings.enable_playwright and not result.cache_hit:
         result = await run_pipeline(url, use_playwright=True, skip_cache=True)
 
     return result
 
 
+# NEW ROUTES - Include routers
+app.include_router(analyze.router)
+app.include_router(feedback.router)
+app.include_router(upload.router)
+
+
+# ── System Routes (Existing) ─────────────────────────────────────
+
 @app.get("/health", tags=["System"])
 async def health_check():
-    """
-    Health check — returns status of all dependencies.
-    """
+    """Health check — returns status of all dependencies."""
     redis_ok = False
     try:
         r = await get_redis()
@@ -129,15 +149,13 @@ async def health_check():
         "uptime_s": round(time.time() - app.state.start_time, 1)
         if hasattr(app.state, "start_time")
         else 0,
-        "version": "1.0.0",
+        "version": "2.0.0",
     }
 
 
 @app.get("/cache/stats", tags=["System"])
 async def get_cache_stats():
-    """
-    Redis cache hit/miss statistics.
-    """
+    """Redis cache hit/miss statistics."""
     stats = await cache_stats()
     return stats
 
@@ -146,13 +164,19 @@ async def get_cache_stats():
 async def root():
     return {
         "name": "PhishGuard",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "docs": "/docs",
         "health": "/health",
+        "features": {
+            "raw_email": "POST /analyze/email",
+            "file_upload": "POST /analyze/email/upload",
+            "forwarded_email": "POST /analyze/email/forward",
+            "url_analysis": "POST /analyze/url"
+        }
     }
 
 
-# ── Debug endpoint (show full score breakdown) ─────────────────────────────
+# ── Debug endpoint (Existing) ────────────────────────────────────
 
 from app.models.schemas import UrlInput as _UrlInput
 from app.core.scorer import explain_score as _explain_score
@@ -161,11 +185,7 @@ from fastapi.responses import PlainTextResponse
 
 @app.post("/debug/score", tags=["Debug"], response_class=PlainTextResponse)
 async def debug_score(request: Request, data: _UrlInput):
-    """
-    Returns a plain-text score explanation trace — useful on demo day
-    to walk judges through exactly how the score was calculated.
-    """
+    """Returns a plain-text score explanation trace."""
     result = await run_pipeline(data.url.strip(), use_playwright=False, skip_cache=True)
-    # Re-run explain_score on the returned flags
     explanation = _explain_score(result.flags)
     return explanation

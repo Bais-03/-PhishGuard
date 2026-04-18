@@ -1,6 +1,7 @@
-version: "3.9"
-
 services:
+  # ============================================
+  # REDIS - Cache & Message Queue
+  # ============================================
   redis:
     image: redis:7-alpine
     container_name: phishguard_redis
@@ -8,9 +9,20 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --appendonly yes
     restart: unless-stopped
+    networks:
+      - phishguard_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ============================================
+  # POSTGRESQL - Audit & Analytics
+  # ============================================
   postgres:
     image: postgres:15-alpine
     container_name: phishguard_postgres
@@ -20,11 +32,209 @@ services:
       POSTGRES_DB: phishguard
       POSTGRES_USER: phishguard
       POSTGRES_PASSWORD: phishguard_secret
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --locale=en_US.UTF-8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/scripts/init_db.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./backend/scripts/migrations:/docker-entrypoint-initdb.d/migrations
     restart: unless-stopped
+    networks:
+      - phishguard_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phishguard -d phishguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ============================================
+  # BACKEND API - FastAPI Application
+  # ============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: phishguard_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql+asyncpg://phishguard:phishguard_secret@postgres:5432/phishguard
+      # API Keys - Hardcoded
+      - VT_API_KEY=31292856bead6f3738c77b922fcb8dd5cc9ba1d52ff0f0506bef0b7e698fa005
+      - GOOGLE_SAFE_BROWSING_KEY=AIzaSyDbXggpAHCr3SbpjME4J28iw_dc9s-M1Lk
+      - ABUSEIPDB_KEY=98fc2df8619ed412b754f8e47be273c7db3038de1a99a42ca3045162046fd444d599fb2d0af05e1f
+      - SENDGRID_API_KEY=placeholder_key
+      - MAILGUN_API_KEY=placeholder_key
+      - SECRET_KEY=your_super_secret_key_change_this_in_production
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+      - ENABLE_PLAYWRIGHT=true
+      - QUEUE_ENABLED=true
+      - DOCKER_ENV=true
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    volumes:
+      - ./backend:/app
+      - playwright_browsers:/ms-playwright
+      - uploads:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - phishguard_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+
+  # ============================================
+  # CELERY WORKER - Async Email Processing
+  # ============================================
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    container_name: phishguard_worker
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql+asyncpg://phishguard:phishguard_secret@postgres:5432/phishguard
+      - VT_API_KEY=31292856bead6f3738c77b922fcb8dd5cc9ba1d52ff0f0506bef0b7e698fa005
+      - GOOGLE_SAFE_BROWSING_KEY=AIzaSyDbXggpAHCr3SbpjME4J28iw_dc9s-M1Lk
+      - ABUSEIPDB_KEY=98fc2df8619ed412b754f8e47be273c7db3038de1a99a42ca3045162046fd444d599fb2d0af05e1f
+      - SENDGRID_API_KEY=placeholder_key
+      - MAILGUN_API_KEY=placeholder_key
+      - ENABLE_PLAYWRIGHT=false
+      - QUEUE_ENABLED=true
+      - DOCKER_ENV=true
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    volumes:
+      - ./backend:/app
+      - playwright_browsers:/ms-playwright
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - phishguard_network
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # ============================================
+  # FRONTEND - React Application
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:8000
+    container_name: phishguard_frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - phishguard_network
+
+  # ============================================
+  # NGINX - Reverse Proxy (Optional)
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: phishguard_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./frontend/dist:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+    networks:
+      - phishguard_network
+    profiles:
+      - production
+
+  # ============================================
+  # PROMETHEUS - Metrics Collection (Optional)
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: phishguard_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+    networks:
+      - phishguard_network
+    profiles:
+      - monitoring
+
+  # ============================================
+  # GRAFANA - Visualization (Optional)
+  # ============================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: phishguard_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - phishguard_network
+    profiles:
+      - monitoring
+
+# ============================================
+# NETWORKS
+# ============================================
+networks:
+  phishguard_network:
+    driver: bridge
+    name: phishguard_network
+
+# ============================================
+# VOLUMES
+# ============================================
 volumes:
   redis_data:
+    driver: local
   postgres_data:
+    driver: local
+  playwright_browsers:
+    driver: local
+  uploads:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

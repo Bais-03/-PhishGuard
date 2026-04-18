@@ -1,0 +1,78 @@
+{
+  "manifest_version": 3,
+  "name": "PhishGuard",
+  "version": "1.0.0",
+  "description": "Analyze visited pages, URLs, and emails for phishing risk.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "webNavigation",
+    "tabs",
+    "alarms",
+    "notifications",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://*/*",
+    "http://*/*",
+    "https://mail.google.com/*",
+    "https://outlook.live.com/*",
+    "https://outlook.office.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "PhishGuard",
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "phishguard-scan-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Scan the active page"
+    },
+    "phishguard-open-popup": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+P",
+        "mac": "Command+Shift+P"
+      },
+      "description": "Open the extension popup"
+    },
+    "phishguard-toggle-extension": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+O",
+        "mac": "Command+Shift+O"
+      },
+      "description": "Toggle PhishGuard on or off"
+    }
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*",
+        "https://mail.google.com/*",
+        "https://outlook.live.com/*",
+        "https://outlook.office.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "warning.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -1,0 +1,140 @@
+#phishguard-warning-banner {
+  --phishguard-banner-bg: #ef4444;
+  --phishguard-banner-text: #ffffff;
+  --phishguard-banner-muted: rgba(255, 255, 255, 0.82);
+  --phishguard-banner-button-bg: rgba(255, 255, 255, 0.18);
+  --phishguard-banner-button-border: rgba(255, 255, 255, 0.22);
+  --phishguard-banner-shadow: rgba(15, 23, 42, 0.35);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2147483647;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+  color: var(--phishguard-banner-text);
+  box-shadow: 0 10px 30px var(--phishguard-banner-shadow);
+}
+
+#phishguard-warning-banner[data-theme="dark"] {
+  --phishguard-banner-text: #e2e8f0;
+  --phishguard-banner-muted: rgba(226, 232, 240, 0.84);
+  --phishguard-banner-button-bg: rgba(15, 23, 42, 0.26);
+  --phishguard-banner-button-border: rgba(226, 232, 240, 0.18);
+  --phishguard-banner-shadow: rgba(2, 6, 23, 0.48);
+}
+
+#phishguard-warning-banner[hidden] {
+  display: none !important;
+}
+
+#phishguard-warning-banner.phishguard-banner--danger {
+  --phishguard-banner-bg: #ef4444;
+  background: var(--phishguard-banner-bg);
+}
+
+#phishguard-warning-banner.phishguard-banner--warning {
+  --phishguard-banner-bg: #f59e0b;
+  background: var(--phishguard-banner-bg);
+}
+
+#phishguard-warning-banner.phishguard-banner--toast {
+  top: 16px;
+  left: auto;
+  right: 16px;
+  width: min(420px, calc(100vw - 32px));
+  border-radius: 18px;
+}
+
+.phishguard-banner__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+}
+
+.phishguard-banner__summary {
+  min-width: 0;
+}
+
+.phishguard-banner__eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--phishguard-banner-muted);
+}
+
+.phishguard-banner__title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+.phishguard-banner__meta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--phishguard-banner-muted);
+}
+
+.phishguard-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.phishguard-banner__report,
+.phishguard-banner__close,
+.phishguard-banner__safe {
+  color: inherit;
+}
+
+.phishguard-banner__report {
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.phishguard-banner__safe {
+  border: 1px solid var(--phishguard-banner-button-border);
+  background: var(--phishguard-banner-button-bg);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.phishguard-banner__safe[disabled] {
+  cursor: wait;
+  opacity: 0.84;
+}
+
+.phishguard-banner__close {
+  border: 0;
+  background: transparent;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+@media (max-width: 600px) {
+  .phishguard-banner__content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  #phishguard-warning-banner.phishguard-banner--toast {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .phishguard-banner__actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

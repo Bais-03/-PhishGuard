@@ -1,0 +1,391 @@
+/* ============================================================
+   PHISHGUARD — PRECISION DARK DESIGN SYSTEM
+   index.css  |  Global styles + component layer
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@300;400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   BASE LAYER
+   ============================================================ */
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: #080c14;
+    color: #e2e8f0;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  h1 { @apply text-3xl font-bold tracking-tight text-text-primary; }
+  h2 { @apply text-2xl font-semibold tracking-tight text-text-primary; }
+  h3 { @apply text-xl font-semibold text-text-primary; }
+  h4 { @apply text-base font-semibold text-text-primary; }
+  p  { @apply text-text-secondary; }
+
+  .font-mono { font-family: 'DM Mono', 'JetBrains Mono', monospace; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar       { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0d1117; }
+  ::-webkit-scrollbar-thumb { background: #1e2d45; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2a3f5f; }
+
+  /* Focus */
+  *:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(59, 130, 246, 0.25);
+    color: #e2e8f0;
+  }
+}
+
+/* ============================================================
+   COMPONENT LAYER
+   ============================================================ */
+@layer components {
+
+  /* ── Cards ──────────────────────────────────────────────── */
+  .card {
+    @apply bg-bg-surface border border-border rounded-card p-5 shadow-card
+           transition-all duration-200;
+  }
+  .card:hover { @apply shadow-card-hover border-border-strong; }
+
+  /* ── Buttons ────────────────────────────────────────────── */
+  .btn-primary {
+    @apply bg-accent-500 hover:bg-accent-400 active:bg-accent-600
+           text-white font-medium px-5 py-2.5 rounded-button
+           transition-all duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none
+           focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2 focus:ring-offset-bg-base;
+  }
+
+  .btn-secondary {
+    @apply bg-bg-raised hover:bg-border border border-border-strong
+           text-text-primary font-medium px-5 py-2.5 rounded-button
+           transition-all duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-border-strong focus:ring-offset-2 focus:ring-offset-bg-base;
+  }
+
+  /* ── Verdict Badges ─────────────────────────────────────── */
+  .verdict-phishing  { @apply bg-danger-500/10 text-danger-400 border-danger-500/30; }
+  .verdict-suspicious { @apply bg-warning-500/10 text-warning-400 border-warning-500/30; }
+  .verdict-safe      { @apply bg-safe-500/10 text-safe-400 border-safe-500/30; }
+
+  /* ── Severity Tags ──────────────────────────────────────── */
+  .tag-critical {
+    @apply inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium
+           bg-danger-500/15 text-danger-400 border border-danger-500/25;
+  }
+  .tag-high {
+    @apply inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium
+           bg-danger-500/10 text-danger-400 border border-danger-500/20;
+  }
+  .tag-medium {
+    @apply inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium
+           bg-warning-500/10 text-warning-400 border border-warning-500/20;
+  }
+  .tag-low {
+    @apply inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium
+           bg-secondary-700/50 text-text-secondary border border-border;
+  }
+
+  /* ── Badge variants ─────────────────────────────────────── */
+  .badge-safe    { @apply inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium bg-safe-500/15 text-safe-400; }
+  .badge-warning { @apply inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium bg-warning-500/15 text-warning-400; }
+  .badge-danger  { @apply inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium bg-danger-500/15 text-danger-400; }
+
+  /* ── Input ──────────────────────────────────────────────── */
+  .input {
+    @apply w-full px-3.5 py-2.5 bg-bg-raised border border-border rounded-button
+           text-text-primary placeholder-text-muted font-mono text-sm
+           focus:outline-none focus:ring-1 focus:ring-accent-500 focus:border-accent-500
+           transition-all duration-150;
+  }
+  .input-label {
+    @apply block text-xs font-medium text-text-secondary uppercase tracking-widest mb-1.5;
+  }
+
+  /* ── Divider ────────────────────────────────────────────── */
+  .divider { @apply border-t border-border my-5; }
+
+  /* ── Skeleton ───────────────────────────────────────────── */
+  .skeleton { @apply bg-bg-raised animate-pulse rounded; }
+
+  /* ── Glass ──────────────────────────────────────────────── */
+  .glass {
+    background: rgba(13, 17, 23, 0.75);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(30, 45, 69, 0.8);
+  }
+}
+
+/* ============================================================
+   UTILITY LAYER
+   ============================================================ */
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .glow-danger  { box-shadow: 0 0 24px 0 rgba(239, 68, 68, 0.2); }
+  .glow-warning { box-shadow: 0 0 24px 0 rgba(245, 158, 11, 0.2); }
+  .glow-safe    { box-shadow: 0 0 24px 0 rgba(16, 185, 129, 0.2); }
+  .glow-accent  { box-shadow: 0 0 24px 0 rgba(59, 130, 246, 0.25); }
+  
+  /* 3D Effects */
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  
+  /* 3D Card Tilt */
+  .card-3d {
+    transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+  }
+  
+  .card-3d:hover {
+    transform: rotateX(4deg) rotateY(4deg) scale(1.02);
+  }
+  
+  /* Staggered animation delays */
+  .delay-0 { transition-delay: 0ms; }
+  .delay-75 { transition-delay: 75ms; }
+  .delay-100 { transition-delay: 100ms; }
+  .delay-150 { transition-delay: 150ms; }
+  .delay-200 { transition-delay: 200ms; }
+  .delay-300 { transition-delay: 300ms; }
+  
+  /* Hover lift effect */
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Scale on hover */
+  .hover-scale {
+    transition: transform 0.3s ease;
+  }
+  
+  .hover-scale:hover {
+    transform: scale(1.05);
+  }
+  
+  /* Glow on hover */
+  .hover-glow {
+    transition: all 0.3s ease;
+  }
+  
+  .hover-glow:hover {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  
+  /* Translate X on hover */
+  .hover-translate-x {
+    transition: transform 0.2s ease;
+  }
+  
+  .hover-translate-x:hover {
+    transform: translateX(4px);
+  }
+  
+  /* Floating animation */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+  
+  .animate-float {
+    animation: float 4s ease-in-out infinite;
+  }
+  
+  /* Pulse slow animation */
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.05); }
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
+  
+  /* Shine effect */
+  @keyframes shine {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  
+  .animate-shine {
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+    background-size: 200% 100%;
+    animation: shine 3s infinite;
+  }
+  
+  /* Border glow animation */
+  @keyframes border-glow {
+    0%, 100% { border-color: rgba(59, 130, 246, 0.2); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    50% { border-color: rgba(59, 130, 246, 0.6); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+  }
+  
+  .animate-border-glow {
+    animation: border-glow 2s ease-in-out infinite;
+  }
+}
+
+/* ============================================================
+   BACKGROUND  —  subtle grid + depth
+   ============================================================ */
+
+/* Fine dot-grid overlay */
+.cyber-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(circle, rgba(59, 130, 246, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Radial vignette to keep edges dark */
+.cyber-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, transparent 0%, #080c14 100%);
+}
+
+/* Subtle top-left accent glow */
+.cyber-shield {
+  position: fixed;
+  top: -120px;
+  left: -120px;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Bottom-right secondary glow */
+.cyber-corner-dots {
+  position: fixed;
+  bottom: -100px;
+  right: -100px;
+  width: 380px;
+  height: 380px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.25s ease-out; }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.slide-in { animation: slideIn 0.25s ease-out; }
+
+@keyframes scoreFill {
+  from { stroke-dashoffset: 314; }
+  to   { stroke-dashoffset: var(--target-offset); }
+}
+.score-ring { animation: scoreFill 1s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+
+/* Scan bar (used in loading state) */
+@keyframes scan {
+  0%   { transform: translateY(-8px); opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translateY(100px); opacity: 0; }
+}
+.scan-bar { animation: scan 1.6s ease-in-out infinite; }
+
+/* Health pulse dot */
+@keyframes pulseRing {
+  0%   { transform: scale(0.8); opacity: 0.5; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+.health-pulse { position: relative; }
+.health-pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: currentColor;
+  animation: pulseRing 1.8s infinite;
+}
+
+/* Shimmer */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+}
+
+/* Blink animation */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-blink {
+  animation: blink 1s step-end infinite;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 640px) {
+  .card { @apply p-4; }
+  h1 { @apply text-2xl; }
+  h2 { @apply text-xl; }
+}
+
+/* ============================================================
+   PRINT
+   ============================================================ */
+@media print {
+  .no-print { display: none; }
+  body { background: white; color: black; }
+  .card { box-shadow: none; border: 1px solid #ddd; }
+}

@@ -96,3 +96,12 @@ class EmailInput(BaseModel):
 
 class UrlInput(BaseModel):
     url: str = Field(..., description="URL to analyze")
+
+
+class FalsePositiveFeedbackInput(BaseModel):
+    url: str = Field(..., description="URL reported as a false positive")
+    verdict: str = Field(..., description="Original extension verdict")
+    score: int = Field(..., description="Original risk score")
+    reasons: List[str] = Field(default_factory=list, description="Reported reasons")
+    source: str = Field(default="extension", description="Reporting surface")
+    reported_at: datetime = Field(default_factory=datetime.utcnow)
