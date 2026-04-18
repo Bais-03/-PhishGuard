@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f8fafc;
+        --panel: rgba(255, 255, 255, 0.98);
+        --text: #0f172a;
+        --text-secondary: #475569;
+        --border: #e2e8f0;
+        --danger: #ef4444;
+        --danger-bg: #fef2f2;
+        --warning: #f59e0b;
+        --warning-bg: #fffbeb;
+        --safe: #22c55e;
+        --safe-bg: #f0fdf4;
+        --accent: #3b82f6;
+        --accent-dark: #2563eb;
+        --surface: #f1f5f9;
+        --surface-hover: #e2e8f0;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      }
+
+      body[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #0f172a;
+        --panel: rgba(30, 41, 59, 0.98);
+        --text: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border: #334155;
+        --danger: #f87171;
+        --danger-bg: #7f1d1d20;
+        --warning: #fbbf24;
+        --warning-bg: #78350f20;
+        --safe: #4ade80;
+        --safe-bg: #14532d20;
+        --accent: #60a5fa;
+        --accent-dark: #3b82f6;
+        --surface: #1e293b;
+        --surface-hover: #334155;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 400px;
+        max-width: 100%;
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: var(--text);
+      }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: var(--surface);
+        border-radius: 10px;
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: var(--text-secondary);
+        border-radius: 10px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 20px;
+        box-shadow: var(--shadow-lg);
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 4px;
+      }
+
+      .logo-icon {
+        width: 28px;
+        height: 28px;
+        color: var(--accent);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .subtitle {
+        margin: 0 0 20px;
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      /* Tabs */
+      .tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 20px;
+      }
+
+      .tab-button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: var(--surface);
+        color: var(--text-secondary);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 10px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .tab-button svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        fill: none;
+      }
+
+      .tab-button:hover {
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+
+      .tab-button.active {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+      }
+
+      .tab-panel[hidden] {
+        display: none;
+      }
+
+      /* Score Card */
+      .score-card {
+        background: var(--surface);
+        border-radius: 20px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .score-ring {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: conic-gradient(var(--ring-color, var(--safe)) calc(var(--score, 0) * 1%), var(--panel) 0);
+        position: relative;
+        flex-shrink: 0;
+        box-shadow: var(--shadow-md);
+      }
+
+      .score-ring::before {
+        content: "";
+        position: absolute;
+        inset: 6px;
+        border-radius: 50%;
+        background: var(--surface);
+      }
+
+      .score-ring span {
+        position: relative;
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .verdict-section {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .verdict {
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+
+      .target-url {
+        font-size: 11px;
+        color: var(--text-secondary);
+        word-break: break-all;
+        font-family: 'SF Mono', monospace;
+      }
+
+      .reasons {
+        margin: 12px 0 0;
+        padding-left: 20px;
+        color: var(--text-secondary);
+        font-size: 11px;
+      }
+
+      .reasons li {
+        margin: 4px 0;
+      }
+
+      /* Form Elements */
+      .section {
+        margin-top: 16px;
+      }
+
+      label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--text-secondary);
+      }
+
+      label svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        stroke-width: 1.5;
+      }
+
+      input[type="url"],
+      textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px 14px;
+        font: inherit;
+        font-size: 12px;
+        background: var(--panel);
+        color: var(--text);
+        transition: all 0.2s ease;
+      }
+
+      input[type="url"]:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent)20;
+      }
+
+      textarea {
+        min-height: 100px;
+        resize: vertical;
+        font-family: 'SF Mono', monospace;
+        font-size: 11px;
+      }
+
+      /* Buttons */
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: none;
+        border-radius: 12px;
+        background: var(--accent);
+        color: white;
+        padding: 10px 16px;
+        font: inherit;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .btn-primary:hover {
+        background: var(--accent-dark);
+        transform: translateY(-1px);
+      }
+
+      .btn-primary svg {
+        width: 16px;
+        height: 16px;
+        stroke: white;
+        stroke-width: 2;
+        fill: none;
+      }
+
+      .btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        color: var(--text);
+        padding: 10px 16px;
+        font: inherit;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .btn-secondary:hover {
+        background: var(--surface-hover);
+        transform: translateY(-1px);
+      }
+
+      .btn-secondary svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        fill: none;
+      }
+
+      .btn-danger {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: none;
+        border-radius: 12px;
+        background: var(--danger);
+        color: white;
+        padding: 10px 16px;
+        font: inherit;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .btn-danger:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+
+      .btn-danger svg {
+        width: 14px;
+        height: 14px;
+        stroke: white;
+        stroke-width: 2;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      /* Footer Links */
+      .footer-links {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+      }
+
+      .footer-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        transition: all 0.2s ease;
+      }
+
+      .footer-link:hover {
+        background: var(--surface-hover);
+        color: var(--text);
+        transform: translateY(-1px);
+      }
+
+      .footer-link svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        stroke-width: 1.5;
+      }
+
+      /* Toggle Switch */
+      .toggle-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 16px 0 12px;
+        padding: 12px 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .toggle-label svg {
+        width: 16px;
+        height: 16px;
+        stroke: var(--text-secondary);
+        stroke-width: 1.5;
+      }
+
+      input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+        accent-color: var(--accent);
+      }
+
+      /* Status Message */
+      .status-message {
+        margin-top: 12px;
+        padding: 8px 12px;
+        background: var(--surface);
+        border-radius: 12px;
+        font-size: 11px;
+        color: var(--text-secondary);
+        text-align: center;
+      }
+
+      /* History Section */
+      .history-section {
+        margin-top: 20px;
+        border-top: 1px solid var(--border);
+        padding-top: 16px;
+      }
+
+      .history-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .history-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      .history-title svg {
+        width: 12px;
+        height: 12px;
+        stroke: currentColor;
+      }
+
+      .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 320px;
+        overflow-y: auto;
+      }
+
+      .history-list[hidden] {
+        display: none;
+      }
+
+      /* Enhanced History Card */
+      .history-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .history-card:hover {
+        background: var(--surface-hover);
+        transform: translateX(2px);
+        box-shadow: var(--shadow-sm);
+      }
+
+      .history-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .risk-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .risk-badge svg {
+        width: 10px;
+        height: 10px;
+      }
+
+      .risk-badge.safe {
+        background: var(--safe-bg);
+        color: var(--safe);
+      }
+
+      .risk-badge.suspicious {
+        background: var(--warning-bg);
+        color: var(--warning);
+      }
+
+      .risk-badge.phishing {
+        background: var(--danger-bg);
+        color: var(--danger);
+      }
+
+      .history-timestamp {
+        font-size: 10px;
+        color: var(--text-secondary);
+      }
+
+      .history-target {
+        font-size: 11px;
+        font-weight: 500;
+        margin-bottom: 4px;
+        word-break: break-all;
+      }
+
+      .history-preview {
+        font-size: 10px;
+        color: var(--text-secondary);
+        font-family: monospace;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .history-empty {
+        padding: 24px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 12px;
+        background: var(--surface);
+        border-radius: 14px;
+      }
+
+      .feedback-row[hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <!-- Header with Logo -->
+      <div class="header">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <h1>PhishGuard</h1>
+      </div>
+      <p class="subtitle">Real-time phishing detection</p>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button id="urlTabButton" class="tab-button active" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H5.78a1.65 1.65 0 0 0-1.51 1 1.65 1.65 0 0 0 .33 1.82l.04.04A10 10 0 0 0 12 17.66a10 10 0 0 0 6.36-2.62l.04-.04z"/>
+          </svg>
+          URL
+        </button>
+        <button id="emailTabButton" class="tab-button" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <rect x="2" y="4" width="20" height="16" rx="2"/>
+            <path d="M22 7l-10 7L2 7"/>
+          </svg>
+          Email
+        </button>
+      </div>
+
+      <!-- URL Panel -->
+      <section id="urlPanel" class="tab-panel">
+        <div class="score-card">
+          <div class="row">
+            <div class="score-ring" id="scoreRing" style="--score:0; --ring-color:#22c55e;">
+              <span id="scoreValue">--</span>
+            </div>
+            <div class="verdict-section">
+              <div class="verdict" id="verdictLabel">Waiting for scan</div>
+              <div class="target-url" id="currentUrl">No active URL</div>
+            </div>
+          </div>
+          <ul class="reasons" id="reasonsList"></ul>
+        </div>
+
+        <div id="falsePositiveRow" class="feedback-row" hidden>
+          <button id="falsePositiveButton" class="btn-danger" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="M12 8v4M12 16h.01"/>
+            </svg>
+            Report as Safe
+          </button>
+        </div>
+
+        <div class="section">
+          <label>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+            </svg>
+            Analyze URL manually
+          </label>
+          <input id="manualUrl" type="url" placeholder="https://example.com">
+          <div class="button-group">
+            <button id="scanButton" class="btn-primary" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="M21 21l-4.35-4.35"/>
+              </svg>
+              Scan
+            </button>
+            <button id="refreshButton" class="btn-secondary" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M23 4v6h-6M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- URL History Section -->
+        <div class="history-section">
+          <div class="history-header">
+            <div class="history-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Recent URL Scans
+            </div>
+            <button id="urlHistoryToggleButton" class="btn-secondary" type="button" style="padding: 4px 12px; font-size: 11px;">Show</button>
+          </div>
+          <div id="urlHistoryEmpty" class="history-empty">No recent URL scans yet.</div>
+          <div id="urlHistoryList" class="history-list" hidden></div>
+        </div>
+      </section>
+
+      <!-- Email Panel -->
+      <section id="emailPanel" class="tab-panel" hidden>
+        <div class="score-card">
+          <div class="row">
+            <div class="score-ring" id="emailScoreRing" style="--score:0; --ring-color:#22c55e;">
+              <span id="emailScoreValue">--</span>
+            </div>
+            <div class="verdict-section">
+              <div class="verdict" id="emailVerdictLabel">Paste an email to analyze</div>
+              <div class="target-url" id="emailSummary">RFC 2822 email content</div>
+            </div>
+          </div>
+          <ul class="reasons" id="emailReasonsList"></ul>
+        </div>
+
+        <div class="section">
+          <label>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="2" y="4" width="20" height="16" rx="2"/>
+              <path d="M22 7l-10 7L2 7"/>
+            </svg>
+            Raw email content
+          </label>
+          <textarea id="emailInput" placeholder="From: alerts@example.com&#10;To: user@example.com&#10;Subject: Urgent verification required&#10;&#10;Paste the full raw email here."></textarea>
+          <div class="button-group">
+            <button id="analyzeEmailButton" class="btn-primary" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+              </svg>
+              Analyze
+            </button>
+          </div>
+        </div>
+
+        <!-- Email History Section -->
+        <div class="history-section">
+          <div class="history-header">
+            <div class="history-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              Recent Email Scans
+            </div>
+            <button id="emailHistoryToggleButton" class="btn-secondary" type="button" style="padding: 4px 12px; font-size: 11px;">Show</button>
+          </div>
+          <div id="emailHistoryEmpty" class="history-empty">No recent email scans yet.</div>
+          <div id="emailHistoryList" class="history-list" hidden></div>
+        </div>
+      </section>
+
+      <!-- Auto-scan Toggle -->
+      <div class="toggle-item">
+        <div class="toggle-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          Automatic scanning
+        </div>
+        <input id="autoScanToggle" type="checkbox">
+      </div>
+
+      <!-- Status Message -->
+      <div class="status-message" id="statusMessage"></div>
+
+      <!-- Footer Links (Styled as Secondary Buttons) -->
+      <div class="footer-links">
+        <a href="options.html" target="_blank" rel="noreferrer" class="footer-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H5.78a1.65 1.65 0 0 0-1.51 1 1.65 1.65 0 0 0 .33 1.82l.04.04A10 10 0 0 0 12 17.66a10 10 0 0 0 6.36-2.62l.04-.04z"/>
+          </svg>
+          Settings
+        </a>
+        <a href="#" id="healthLink" class="footer-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M22 12h-4l-3 9-4-18-3 9H2"/>
+          </svg>
+          System Health
+        </a>
+      </div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

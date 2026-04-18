@@ -1,35 +1,31 @@
 import React, { useState } from 'react'
 import { ChevronDown, ChevronRight, AlertTriangle, AlertCircle, Info, CheckCircle } from 'lucide-react'
+import { SeverityBadge } from './ui'
 
 const SEVERITY_CONFIG = {
   CRITICAL: {
-    color: 'text-red-400',
-    bg: 'bg-red-950 border-red-800',
-    badge: 'bg-red-900 text-red-200',
+    color: 'text-danger-400',
+    bg: 'bg-danger-500/15 border-danger-500/40',
     icon: AlertCircle,
   },
   HIGH: {
-    color: 'text-orange-400',
-    bg: 'bg-orange-950 border-orange-800',
-    badge: 'bg-orange-900 text-orange-200',
+    color: 'text-danger-400',
+    bg: 'bg-danger-500/10 border-danger-500/30',
     icon: AlertTriangle,
   },
   MEDIUM: {
-    color: 'text-amber-400',
-    bg: 'bg-amber-950 border-amber-800',
-    badge: 'bg-amber-900 text-amber-200',
+    color: 'text-warning-400',
+    bg: 'bg-warning-500/10 border-warning-500/30',
     icon: AlertTriangle,
   },
   LOW: {
-    color: 'text-blue-400',
-    bg: 'bg-blue-950 border-blue-800',
-    badge: 'bg-blue-900 text-blue-200',
+    color: 'text-accent-400',
+    bg: 'bg-accent-500/10 border-accent-500/30',
     icon: Info,
   },
   NONE: {
-    color: 'text-green-400',
-    bg: 'bg-green-950 border-green-800',
-    badge: 'bg-green-900 text-green-200',
+    color: 'text-safe-400',
+    bg: 'bg-safe-500/10 border-safe-500/30',
     icon: CheckCircle,
   },
 }
@@ -45,21 +41,16 @@ function FlagItem({ flag }) {
       <Icon size={16} className={`${cfg.color} mt-0.5 shrink-0`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-sm font-semibold text-slate-200">
-            {flag.type.replace(/_/g, ' ')}
+          <span className="font-mono text-sm font-semibold text-text-primary">
+            {flag.type.replace(/_/g, ' ').toUpperCase()}
           </span>
-          <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${cfg.badge}`}>
-            {flag.severity}
-          </span>
-          <span className="text-xs text-slate-400 ml-auto font-mono">
-            +{flag.score}pts
-          </span>
+          <SeverityBadge severity={flag.severity} score={flag.score} />
         </div>
         {flag.detail && (
-          <p className="text-xs text-slate-400 mt-1 break-words">{flag.detail}</p>
+          <p className="text-sm text-text-primary mt-1 break-words leading-relaxed">{flag.detail}</p>
         )}
         {flag.source && (
-          <span className="text-xs text-slate-600 mt-0.5 block">
+          <span className="text-xs text-text-secondary mt-0.5 block">
             source: {flag.source}
           </span>
         )}
@@ -70,8 +61,6 @@ function FlagItem({ flag }) {
 
 export default function FlagBreakdown({ flags }) {
   const [expanded, setExpanded] = useState({ CRITICAL: true, HIGH: true, MEDIUM: true })
-
-  // Filter out NONE severity (pass signals) unless user wants them
   const [showClean, setShowClean] = useState(false)
 
   const grouped = {}
@@ -85,10 +74,10 @@ export default function FlagBreakdown({ flags }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+        <h3 className="text-sm font-semibold text-accent-400 uppercase tracking-wider">
           Flag Breakdown
         </h3>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-text-secondary">
           {flags.filter(f => f.severity !== 'NONE').length} signals detected
         </span>
       </div>
@@ -100,24 +89,24 @@ export default function FlagBreakdown({ flags }) {
         const cfg = SEVERITY_CONFIG[severity]
 
         return (
-          <div key={severity} className="rounded-lg border border-phish-border overflow-hidden">
+          <div key={severity} className="rounded-lg border border-border overflow-hidden">
             <button
               onClick={() => setExpanded(e => ({ ...e, [severity]: !isOpen }))}
-              className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-800 hover:bg-slate-750 transition-colors"
+              className="w-full flex items-center justify-between px-4 py-2.5 bg-bg-raised hover:bg-border transition-colors"
             >
               <div className="flex items-center gap-2">
                 <span className={`text-xs font-bold ${cfg.color}`}>{severity}</span>
-                <span className={`text-xs px-1.5 rounded-full font-mono ${cfg.badge}`}>
+                <span className="text-xs px-1.5 py-0.5 rounded-full font-mono bg-bg-surface text-text-secondary">
                   {items.length}
                 </span>
               </div>
               {isOpen
-                ? <ChevronDown size={14} className="text-slate-400" />
-                : <ChevronRight size={14} className="text-slate-400" />
+                ? <ChevronDown size={14} className="text-text-secondary" />
+                : <ChevronRight size={14} className="text-text-secondary" />
               }
             </button>
             {isOpen && (
-              <div className="p-3 space-y-2 bg-slate-900">
+              <div className="p-3 space-y-3 bg-bg-surface/50">
                 {items.map((flag, i) => <FlagItem key={i} flag={flag} />)}
               </div>
             )}
@@ -129,7 +118,7 @@ export default function FlagBreakdown({ flags }) {
       {cleanCount > 0 && (
         <button
           onClick={() => setShowClean(v => !v)}
-          className="text-xs text-slate-500 hover:text-slate-400 flex items-center gap-1 mt-2"
+          className="text-xs text-accent-400 hover:text-accent-300 flex items-center gap-1 mt-2"
         >
           {showClean ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           {showClean ? 'Hide' : 'Show'} {cleanCount} passing signal{cleanCount !== 1 ? 's' : ''}
@@ -137,7 +126,7 @@ export default function FlagBreakdown({ flags }) {
       )}
 
       {showClean && (
-        <div className="space-y-2">
+        <div className="space-y-2 mt-2">
           {(grouped['NONE'] || []).map((flag, i) => <FlagItem key={i} flag={flag} />)}
         </div>
       )}

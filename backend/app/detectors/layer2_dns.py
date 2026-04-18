@@ -28,6 +28,80 @@ KNOWN_BRANDS = [
     "irs", "fedex", "ups", "dhl", "usps",
 ]
 
+# ============================================================
+# TYPOSQUATTING DETECTION
+# ============================================================
+
+TYPO_MAP = {
+    "0": "o", "1": "i", "3": "e", "4": "a", "5": "s",
+    "7": "t", "8": "b", "@": "a", "$": "s", "!": "i",
+}
+
+
+def normalize_typo(text: str) -> str:
+    """Convert common typosquatting characters to normal letters."""
+    result = text.lower()
+    for typo, normal in TYPO_MAP.items():
+        result = result.replace(typo, normal)
+    return result
+
+
+def check_typosquatting(domain: str) -> Flag:
+    """Detect typosquatting like amaz0n, paypa1, micr0s0ft."""
+    if not domain:
+        return Flag(type="NO_TYPOSQUATTING", severity=Severity.NONE, score=0, source="similarity")
+    
+    domain_clean = domain.split(".")[0].lower()
+    normalized = normalize_typo(domain_clean)
+    
+    for brand in KNOWN_BRANDS:
+        if brand == domain_clean:
+            continue
+        if brand in normalized:
+            return Flag(
+                type="TYPO_SQUATTING",
+                severity=Severity.HIGH,
+                score=30,
+                detail=f"Domain '{domain}' contains typosquatting of brand '{brand}'",
+                source="similarity",
+            )
+        # Also check fuzzy ratio on normalized name
+        score = fuzz.ratio(normalized, brand)
+        if score >= 85:
+            return Flag(
+                type="TYPO_SQUATTING",
+                severity=Severity.HIGH,
+                score=30,
+                detail=f"Domain '{domain}' is {score}% similar to brand '{brand}' after normalization",
+                source="similarity",
+            )
+    return Flag(type="NO_TYPOSQUATTING", severity=Severity.NONE, score=0, source="similarity")
+
+
+def check_suspicious_tld_for_domain(domain: str) -> Flag:
+    """Flag suspicious TLDs in domains (used for email sender domains)."""
+    if not domain:
+        return Flag(type="TLD_OK", severity=Severity.NONE, score=0, source="dns")
+    
+    SUSPICIOUS_TLDS = {
+        "xyz", "top", "click", "link", "work", "date", "men",
+        "club", "online", "live", "site", "tech", "review", "trade",
+        "download", "bid", "loan", "win", "stream", "party", "gq", "ml", "tk"
+    }
+    
+    parts = domain.split(".")
+    tld = parts[-1].lower() if len(parts) > 1 else ""
+    
+    if tld in SUSPICIOUS_TLDS:
+        return Flag(
+            type="SUSPICIOUS_TLD",
+            severity=Severity.MEDIUM,
+            score=15,
+            detail=f"Sender domain uses suspicious TLD '.{tld}' commonly used in phishing",
+            source="dns",
+        )
+    return Flag(type="TLD_OK", severity=Severity.NONE, score=0, source="dns")
+
 
 async def check_spf_dmarc(domain: str) -> list[Flag]:
     flags = []
@@ -159,6 +233,7 @@ async def check_domain_age(domain: str) -> Flag:
 
 
 async def check_tls_cert(domain: str) -> Flag:
+    """Check TLS certificate age."""
     try:
         loop = asyncio.get_event_loop()
 
@@ -193,17 +268,28 @@ async def check_tls_cert(domain: str) -> Flag:
         return Flag(type="TLS_CERT_OK", severity=Severity.NONE, score=0, source="tls")
 
     except Exception:
-        return Flag(type="TLS_CHECK_SKIPPED", severity=Severity.NONE, score=0, source="tls")
+        return Flag(
+            type="TLS_CHECK_FAILED",
+            severity=Severity.LOW,
+            score=5,
+            detail="TLS certificate check failed (no HTTPS or invalid cert)",
+            source="tls",
+        )
 
 
 def check_lookalike_domain(domain: str) -> Flag:
+    """Check for lookalike domains using fuzzy matching."""
+    if not domain:
+        return Flag(type="DOMAIN_OK", severity=Severity.NONE, score=0, source="similarity")
+    
     base = domain.rsplit(".", 2)[-2] if domain.count(".") >= 2 else domain.split(".")[0]
+    base_clean = normalize_typo(base)
 
     for brand in KNOWN_BRANDS:
         if base == brand:
             continue
-        score = fuzz.ratio(base, brand)
-        if score >= 80:
+        score = fuzz.ratio(base_clean, brand)
+        if score >= 85:
             return Flag(
                 type="LOOKALIKE_DOMAIN",
                 severity=Severity.HIGH,
@@ -298,6 +384,8 @@ async def run_layer2(ctx: AnalysisContext) -> list[Flag]:
         tasks.append(check_mx_record(domain))
         tasks.append(check_tls_cert(domain))
         flags.append(check_lookalike_domain(domain))
+        # NEW: Add typosquatting check for each domain
+        flags.append(check_typosquatting(domain))
 
     if ctx.mode == "email" and ctx.sender_domain:
         tasks.append(check_spf_dmarc(ctx.sender_domain))
@@ -305,6 +393,10 @@ async def run_layer2(ctx: AnalysisContext) -> list[Flag]:
         tasks.append(check_mx_record(ctx.sender_domain))
         flags.extend(check_header_mismatches(ctx.headers))
         flags.append(check_sender_link_mismatch(ctx.sender_domain, ctx.urls))
+        # NEW: Check typosquatting on sender domain
+        flags.append(check_typosquatting(ctx.sender_domain))
+        # NEW: Check suspicious TLD on sender domain
+        flags.append(check_suspicious_tld_for_domain(ctx.sender_domain))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for r in results:

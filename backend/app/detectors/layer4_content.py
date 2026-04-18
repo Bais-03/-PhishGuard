@@ -2,6 +2,7 @@
 Layer 4 — Content & Deep Analysis
 - Email body text analysis (plain text emails)
 - HTML DOM analysis (credential forms, anchor mismatches, tracking pixels, brand impersonation)
+- Subdomain imitation detection (NEW)
 - httpx redirect chain following (max 5 hops)
 - Optional Playwright headless render (subprocess-sandboxed)
 """
@@ -44,8 +45,8 @@ def analyze_email_body_text(body_text: str) -> list[Flag]:
         if re.search(r'https?://\d+\.\d+\.\d+\.\d+', url):
             flags.append(Flag(
                 type="IP_URL_IN_EMAIL_BODY",
-                severity=Severity.HIGH,
-                score=15,
+                severity=Severity.LOW,
+                score=8,
                 detail=f"Email contains raw IP URL: {url[:50]}",
                 source="content",
             ))
@@ -122,7 +123,7 @@ def analyze_html_content(html: str, page_url: str = "") -> list[Flag]:
         flags.append(Flag(
             type="CREDENTIAL_FORM_DETECTED",
             severity=Severity.HIGH,
-            score=30,  # Increased from 25
+            score=30,
             detail=f"Found {len(password_fields)} password input field(s) — likely credential harvesting form",
             source="content",
         ))
@@ -139,7 +140,7 @@ def analyze_html_content(html: str, page_url: str = "") -> list[Flag]:
         flags.append(Flag(
             type="ANCHOR_HREF_MISMATCH",
             severity=Severity.HIGH,
-            score=25,  # Increased from 20
+            score=25,
             detail=mismatches[0],
             source="content",
         ))
@@ -182,7 +183,7 @@ def analyze_html_content(html: str, page_url: str = "") -> list[Flag]:
                 flags.append(Flag(
                     type="BRAND_IMPERSONATION_IN_TITLE",
                     severity=Severity.CRITICAL,
-                    score=45,  # Increased from 35
+                    score=45,
                     detail=f"Page title references '{brand}' but domain is '{actual_domain}'",
                     source="content",
                 ))
@@ -199,13 +200,93 @@ def analyze_html_content(html: str, page_url: str = "") -> list[Flag]:
                 flags.append(Flag(
                     type="SUSPICIOUS_EXTERNAL_RESOURCE",
                     severity=Severity.MEDIUM,
-                    score=12,  # Increased from 8
+                    score=12,
                     detail=f"Loads resource from IP address: {ext_domain}",
                     source="content",
                 ))
                 break
 
     return flags
+
+
+# ============================================================
+# NEW: SUBDOMAIN IMITATION DETECTION
+# ============================================================
+
+def check_subdomain_imitation(url: str) -> Flag:
+    """
+    Detect subdomain imitation pattern: real-brand.com.attacker.com
+    Example: drive.google.com.secure-verify.com
+    """
+    if not url:
+        return Flag(type="NO_SUBDOMAIN_IMITATION", severity=Severity.NONE, score=0, source="content")
+    
+    try:
+        parsed = urllib.parse.urlparse(url)
+        netloc = parsed.netloc.lower()
+        
+        if not netloc:
+            return Flag(type="NO_SUBDOMAIN_IMITATION", severity=Severity.NONE, score=0, source="content")
+        
+        # Check if netloc contains a known brand in the subdomain section
+        # Pattern: brand.com.something.com
+        parts = netloc.split(".")
+        
+        for i, part in enumerate(parts):
+            if part in KNOWN_BRANDS_CONTENT and i + 2 < len(parts):
+                # Brand appears before the final domain
+                # actual registrable domain = last two labels
+                actual_domain = ".".join(parts[-2:]) if len(parts) >= 2 else netloc
+
+                # Build the canonical domain we'd expect for this brand
+                expected_domain = f"{part}.com"
+
+                # FIXED: compare actual_domain directly, not via substring
+                # Old bug: `expected_domain not in netloc` was True for
+                # drive.google.com.secure-verify.com because netloc contains
+                # the substring "google.com", so the flag never fired.
+                if actual_domain != expected_domain:
+                    return Flag(
+                        type="SUBDOMAIN_IMITATION",
+                        severity=Severity.HIGH,
+                        score=25,
+                        detail=f"URL uses subdomain deception: '{part}' appears in subdomain but actual domain is '{actual_domain}'",
+                        source="content",
+                    )
+    except Exception:
+        pass
+    
+    return Flag(type="NO_SUBDOMAIN_IMITATION", severity=Severity.NONE, score=0, source="content")
+
+
+# ============================================================
+# NEW: EMAIL LINK ACTION KEYWORDS DETECTION
+# ============================================================
+
+URL_ACTION_KEYWORDS = [
+    "login", "signin", "verify", "confirm", "secure",
+    "account", "update", "billing", "payment", "credential",
+    "restore", "unlock", "validate", "authenticate"
+]
+
+
+def check_email_link_keywords(urls: list[str]) -> Flag:
+    """Check if email contains links with suspicious action keywords."""
+    if not urls:
+        return Flag(type="EMAIL_LINK_CLEAN", severity=Severity.NONE, score=0, source="content")
+    
+    for url in urls:
+        url_lower = url.lower()
+        for keyword in URL_ACTION_KEYWORDS:
+            if f"/{keyword}" in url_lower or f"/{keyword}/" in url_lower:
+                return Flag(
+                    type="EMAIL_LINK_ACTION_KEYWORDS",
+                    severity=Severity.MEDIUM,
+                    score=15,
+                    detail=f"Email contains link with suspicious action keyword: {url[:60]}",
+                    source="content",
+                )
+    return Flag(type="EMAIL_LINK_CLEAN", severity=Severity.NONE, score=0, source="content")
 
 
 # ── Redirect Chain Follower ────────────────────────────────────────
@@ -226,7 +307,7 @@ async def check_redirect_chain(url: str) -> list[Flag]:
                 flags.append(Flag(
                     type="REDIRECT_DETECTED",
                     severity=Severity.MEDIUM,
-                    score=12,  # Increased from 8
+                    score=12,
                     detail=f"URL redirects through {len(history)} hop(s) → final: {str(resp.url)[:80]}",
                     source="redirect",
                 ))
@@ -240,12 +321,12 @@ async def check_redirect_chain(url: str) -> list[Flag]:
         flags.append(Flag(
             type="EXCESSIVE_REDIRECTS",
             severity=Severity.HIGH,
-            score=22,  # Increased from 18
+            score=22,
             detail="URL exceeds 5 redirect hops",
             source="redirect",
         ))
     except Exception:
-        pass  # Network errors are expected for malicious URLs
+        pass
 
     return flags
 
@@ -267,7 +348,7 @@ async def analyze_with_playwright(url: str) -> list[Flag]:
             url,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            limit=1024 * 1024,  # 1MB output cap
+            limit=1024 * 1024,
         )
 
         try:
@@ -290,7 +371,7 @@ async def analyze_with_playwright(url: str) -> list[Flag]:
             return [Flag(**f) for f in raw if f]
 
     except Exception as e:
-        pass  # Playwright is optional — never crash the pipeline
+        pass
 
     return []
 
@@ -307,6 +388,14 @@ async def run_layer4(ctx: AnalysisContext, use_playwright: bool = False) -> list
     # Analyze email HTML body if present
     if ctx.body_html:
         flags.extend(analyze_html_content(ctx.body_html))
+
+    # NEW: Check for email link action keywords
+    if ctx.mode == "email" and ctx.urls:
+        flags.append(check_email_link_keywords(ctx.urls))
+
+    # NEW: Check for subdomain imitation in URLs
+    for url in ctx.urls[:3]:
+        flags.append(check_subdomain_imitation(url))
 
     # Redirect chain analysis for URLs
     for url in ctx.urls[:3]:

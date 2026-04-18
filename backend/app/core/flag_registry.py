@@ -59,6 +59,11 @@ REGISTRY: dict[str, dict] = {
         "severity": Tier.CRITICAL, "category": "content",
         "description": "Page title references a known brand but domain does not match",
     },
+    "BRAND_IMPERSONATION": {
+        "base": 40, "confidence": 0.92,
+        "severity": Tier.CRITICAL, "category": "email",
+        "description": "Email claims to be from one brand but links to different domain",
+    },
 
     # ── HIGH (base 20–34) ───────────────────────────────────────────────────
     "HOMOGLYPH_CHAR": {
@@ -89,7 +94,7 @@ REGISTRY: dict[str, dict] = {
     "LOOKALIKE_DOMAIN": {
         "base": 22, "confidence": 0.80,
         "severity": Tier.HIGH, "category": "url",
-        "description": "Domain is visually similar to a known brand (typosquatting)",
+        "description": "Domain is visually similar to a known brand",
     },
     "NO_SPF_RECORD": {
         "base": 20, "confidence": 0.80,
@@ -125,6 +130,28 @@ REGISTRY: dict[str, dict] = {
         "base": 18, "confidence": 0.75,
         "severity": Tier.HIGH, "category": "url",
         "description": "URL exceeds 5 redirect hops — evasion technique",
+    },
+    "SENDER_LINK_MISMATCH": {
+        "base": 25, "confidence": 0.85,
+        "severity": Tier.HIGH, "category": "email",
+        "description": "Sender domain doesn't match link domain",
+    },
+
+    # NEW HIGH SEVERITY FLAGS FOR URL DETECTION
+    "BRAND_IMPERSONATION_URL": {
+        "base": 30, "confidence": 0.85,
+        "severity": Tier.HIGH, "category": "url",
+        "description": "URL contains brand name but domain is different",
+    },
+    "TYPO_SQUATTING": {
+        "base": 30, "confidence": 0.85,
+        "severity": Tier.HIGH, "category": "url",
+        "description": "Typosquatting detected (amaz0n, paypa1, etc.)",
+    },
+    "SUBDOMAIN_IMITATION": {
+        "base": 25, "confidence": 0.80,
+        "severity": Tier.HIGH, "category": "url",
+        "description": "Subdomain deception (brand.com.attacker.com)",
     },
 
     # ── MEDIUM (base 8–19) ──────────────────────────────────────────────────
@@ -179,6 +206,28 @@ REGISTRY: dict[str, dict] = {
         "description": "Page loads a resource from a raw IP address",
     },
 
+    # NEW MEDIUM SEVERITY FLAGS
+    "SUSPICIOUS_TLD": {
+        "base": 15, "confidence": 0.70,
+        "severity": Tier.MEDIUM, "category": "url",
+        "description": "Suspicious TLD (.xyz, .top, .click) commonly used in phishing",
+    },
+    "URL_ACTION_KEYWORDS": {
+        "base": 15, "confidence": 0.75,
+        "severity": Tier.MEDIUM, "category": "url",
+        "description": "Suspicious action keywords in URL path (login, verify, confirm)",
+    },
+    "NO_HTTPS": {
+        "base": 12, "confidence": 0.85,
+        "severity": Tier.MEDIUM, "category": "url",
+        "description": "Connection not secure (HTTP instead of HTTPS)",
+    },
+    "EMAIL_LINK_ACTION_KEYWORDS": {
+        "base": 15, "confidence": 0.70,
+        "severity": Tier.MEDIUM, "category": "email",
+        "description": "Email contains link with suspicious action keyword",
+    },
+
     # ── LOW (base 1–7) ──────────────────────────────────────────────────────
     "IP_IN_URL": {
         "base": 8, "confidence": 0.70,
@@ -214,6 +263,31 @@ REGISTRY: dict[str, dict] = {
         "base": 5, "confidence": 0.30,
         "severity": Tier.LOW, "category": "behavioral",
         "description": "URL not yet in VirusTotal — submitted for first scan",
+    },
+    "TLS_CHECK_FAILED": {
+        "base": 5, "confidence": 0.60,
+        "severity": Tier.LOW, "category": "url",
+        "description": "TLS certificate check failed (no HTTPS or invalid cert)",
+    },
+    "IP_URL_IN_EMAIL_BODY": {
+        "base": 8, "confidence": 0.70,
+        "severity": Tier.LOW, "category": "content",
+        "description": "Email contains raw IP URL instead of domain name",
+    },
+    "EXCESSIVE_EXCLAMATIONS": {
+        "base": 5, "confidence": 0.50,
+        "severity": Tier.LOW, "category": "content",
+        "description": "Multiple exclamation marks in email body (urgency signal)",
+    },
+    "ALL_CAPS_PHRASE": {
+        "base": 5, "confidence": 0.50,
+        "severity": Tier.LOW, "category": "content",
+        "description": "ALL CAPS phrase detected in email body",
+    },
+    "GENERIC_GREETING": {
+        "base": 5, "confidence": 0.55,
+        "severity": Tier.LOW, "category": "content",
+        "description": "Email uses generic greeting instead of personalized salutation",
     },
     "PLAYWRIGHT_TIMEOUT": {
         "base": 0, "confidence": 1.0,
@@ -292,7 +366,63 @@ REGISTRY: dict[str, dict] = {
         "severity": Tier.NONE, "category": "url",
         "description": "URL uses a proper domain name (not a raw IP)",
     },
+    "NO_BRAND_IMPERSONATION": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "url",
+        "description": "No brand impersonation detected in URL",
+    },
+    "TLD_OK": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "url",
+        "description": "TLD is not in suspicious list",
+    },
+    "URL_ACTION_CLEAN": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "url",
+        "description": "No suspicious action keywords in URL path",
+    },
+    "HTTPS_OK": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "url",
+        "description": "Connection uses HTTPS (secure)",
+    },
+    "NO_TYPOSQUATTING": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "url",
+        "description": "No typosquatting detected in domain",
+    },
+    "NO_SUBDOMAIN_IMITATION": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "url",
+        "description": "No subdomain imitation detected",
+    },
+    "SENDER_LINK_MATCH": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "email",
+        "description": "Sender domain matches link domain",
+    },
+    "NO_MISMATCH_CHECK": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "email",
+        "description": "No sender-link mismatch detected",
+    },
+    "MX_CHECK_SKIPPED": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "email",
+        "description": "MX record check skipped (non-fatal)",
+    },
+    "TRANCO_SKIP": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "behavioral",
+        "description": "Tranco check skipped (non-fatal)",
+    },
+    "EMAIL_LINK_CLEAN": {
+        "base": 0, "confidence": 1.0,
+        "severity": Tier.NONE, "category": "email",
+        "description": "No suspicious action keywords in email links",
+    },
 }
+
 
 # ---------------------------------------------------------------------------
 # Helper lookups
@@ -363,6 +493,30 @@ CO_OCCURRENCE_RULES: list[tuple] = [
         frozenset({"IP_IN_URL", "REDIRECT_DETECTED"}),
         6.0,
         "IP-based URL with redirect chain — evasion stacking",
+    ),
+    # NEW: Brand impersonation URL + suspicious TLD
+    (
+        frozenset({"BRAND_IMPERSONATION_URL", "SUSPICIOUS_TLD"}),
+        10.0,
+        "Brand impersonation on suspicious TLD",
+    ),
+    # NEW: Typosquatting + new domain
+    (
+        frozenset({"TYPO_SQUATTING", "VERY_NEW_DOMAIN"}),
+        12.0,
+        "Typosquatting on newly registered domain",
+    ),
+    # NEW: URL action keywords + no HTTPS
+    (
+        frozenset({"URL_ACTION_KEYWORDS", "NO_HTTPS"}),
+        8.0,
+        "Suspicious URL action keywords with insecure connection",
+    ),
+    # NEW: Subdomain imitation + suspicious TLD
+    (
+        frozenset({"SUBDOMAIN_IMITATION", "SUSPICIOUS_TLD"}),
+        10.0,
+        "Subdomain deception on suspicious TLD",
     ),
 ]
 

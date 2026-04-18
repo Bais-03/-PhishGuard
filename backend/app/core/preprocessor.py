@@ -13,8 +13,11 @@ from app.models.schemas import AnalysisContext
 import tldextract
 
 
+# ============================================================
+# FIXED: Improved URL regex that captures complete URLs including query parameters
+# ============================================================
 URL_REGEX = re.compile(
-    r"https?://[^\s\"'<>]+",
+    r"https?://[^\s<>\"'{}|\\^`\[\]]+",
     re.IGNORECASE,
 )
 
@@ -107,9 +110,34 @@ def extract_html_body(msg) -> str:
     return body
 
 
+# ============================================================
+# FIXED: extract_all_urls with URL cleaning and validation
+# ============================================================
 def extract_all_urls(msg) -> list[str]:
     text = extract_text_body(msg) + extract_html_body(msg)
-    return list(set(URL_REGEX.findall(text)))
+    
+    # Find all URLs using regex
+    raw_urls = URL_REGEX.findall(text)
+    
+    # Clean and validate URLs
+    cleaned_urls = []
+    for url in raw_urls:
+        # Remove trailing punctuation that might be attached
+        url = url.rstrip('.,!?;:)]}')
+        
+        # Ensure it starts with http:// or https://
+        if url.startswith(('http://', 'https://')):
+            cleaned_urls.append(url)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_urls = []
+    for url in cleaned_urls:
+        if url not in seen:
+            seen.add(url)
+            unique_urls.append(url)
+    
+    return unique_urls
 
 
 def extract_attachment_info(msg) -> list[dict]:
@@ -132,12 +160,14 @@ async def preprocess(raw_input: str) -> AnalysisContext:
     ctx.raw_input = raw_input
     ctx.cache_key = hashlib.sha256(raw_input.encode()).hexdigest()
 
+    # Check if this is a URL (direct URL analysis)
     if looks_like_url(raw_input):
         ctx.mode = "url"
         url = normalize_url(raw_input)
         ctx.urls = [url]
         ctx.domains = [extract_domain(url)]
     else:
+        # This is an email - extract all content
         ctx.mode = "email"
         msg = stdlib_email.message_from_string(raw_input)
         ctx.headers = extract_headers(msg)

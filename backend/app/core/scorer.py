@@ -2,6 +2,7 @@
 Scoring Engine — converts flags into final score with transparent breakdown.
 """
 import math
+import re
 from dataclasses import dataclass, field
 from typing import List, Tuple
 from app.models.schemas import Flag, Severity, ScoringResult
@@ -37,7 +38,15 @@ CONFIDENCE_MULTIPLIERS = {
     "LOOKALIKE_DOMAIN": 0.60,
     "NOT_IN_TRANCO_TOP_1M": 0.50,
     "VT_NOT_FOUND": 0.40,
-    
+
+    # URL-based detectors (layer1_local)
+    "BRAND_IMPERSONATION_URL": 0.85,
+    "SUSPICIOUS_TLD": 0.70,
+    "URL_ACTION_KEYWORDS": 0.75,
+    "NO_HTTPS": 0.85,
+    "TYPO_SQUATTING": 0.85,
+    "SUBDOMAIN_IMITATION": 0.80,
+
     # Default
     "DEFAULT": 0.50,
 }
@@ -64,6 +73,13 @@ FLAG_CATEGORIES = {
     "IP_IN_URL": "URL Analysis",
     "UNICODE_DECEPTION": "URL Analysis",
     "HOMOGLYPH_CHAR": "URL Analysis",
+    # New URL detector flags
+    "BRAND_IMPERSONATION_URL": "URL Analysis",
+    "SUSPICIOUS_TLD": "URL Analysis",
+    "URL_ACTION_KEYWORDS": "URL Analysis",
+    "NO_HTTPS": "URL Analysis",
+    "TYPO_SQUATTING": "URL Analysis",
+    "SUBDOMAIN_IMITATION": "URL Analysis",
 }
 
 # Flag descriptions
@@ -80,6 +96,13 @@ FLAG_DESCRIPTIONS = {
     "CREDENTIAL_FORM_DETECTED": "Password input field detected",
     "VT_NOT_FOUND": "URL not previously scanned by VirusTotal",
     "NOT_IN_TRANCO_TOP_1M": "Domain not in top 1M legitimate sites",
+    # New URL detector flags
+    "BRAND_IMPERSONATION_URL": "URL contains brand name but domain is not that brand",
+    "SUSPICIOUS_TLD": "Suspicious TLD (.xyz, .top, .click) commonly used in phishing",
+    "URL_ACTION_KEYWORDS": "Suspicious action keywords in URL path (login, verify, confirm)",
+    "NO_HTTPS": "Connection not secure (HTTP instead of HTTPS)",
+    "TYPO_SQUATTING": "Typosquatting detected (amaz0n, paypa1, etc.)",
+    "SUBDOMAIN_IMITATION": "Subdomain deception (brand.com.attacker.com)",
 }
 
 
@@ -105,6 +128,49 @@ class ScoreBreakdown:
     hard_floor_applied: bool
     contributions: List[FlagContribution] = field(default_factory=list)
     co_occurrence_bonuses: List[dict] = field(default_factory=list)
+
+
+# ============================================================
+# WHITELIST FOR LEGITIMATE TRANSACTIONAL EMAILS
+# ============================================================
+TRUSTED_TRANSACTIONAL_DOMAINS = {
+    "paypal.com", "amazon.com", "github.com", "slack.com",
+    "google.com", "microsoft.com", "apple.com", "stripe.com",
+    "netflix.com", "spotify.com", "dropbox.com", "linkedin.com",
+    "twitter.com", "facebook.com", "instagram.com", "reddit.com",
+    "accounts.google.com", "myaccount.google.com"
+}
+
+
+def extract_domain_from_detail(detail: str) -> str | None:
+    """Extract domain from flag detail string."""
+    if not detail:
+        return None
+    # Pattern to extract domain from URLs in flag details
+    domain_match = re.search(r'(?:https?://)?([a-zA-Z0-9][a-zA-Z0-9-]{1,61}\.[a-zA-Z]{2,})', detail)
+    if domain_match:
+        return domain_match.group(1).lower()
+    return None
+
+
+def is_trusted_transactional_domain(flags: List[Flag]) -> tuple[bool, str | None]:
+    """Check if any URL in flags belongs to a trusted transactional domain."""
+    # Collect URLs from EMAIL_LINK_ACTION_KEYWORDS and REDIRECT_DETECTED flags
+    urls = []
+    for flag in flags:
+        if flag.type in ["EMAIL_LINK_ACTION_KEYWORDS", "REDIRECT_DETECTED"] and flag.detail:
+            # Extract URL from detail (format: "Email contains link... https://..." or "URL redirects... https://...")
+            url_match = re.search(r'(https?://[^\s]+)', flag.detail)
+            if url_match:
+                urls.append(url_match.group(1))
+    
+    # Check if any URL belongs to a trusted domain
+    for url in urls:
+        for trusted in TRUSTED_TRANSACTIONAL_DOMAINS:
+            if trusted in url.lower():
+                return True, trusted
+    
+    return False, None
 
 
 def calculate_score(flags: List[Flag]) -> ScoringResult:
@@ -164,6 +230,23 @@ def calculate_score(flags: List[Flag]) -> ScoringResult:
         safe_discount = min(15, raw_score * 0.1)
         raw_score -= safe_discount
     
+    # Check for credential form
+    has_credential_form = any(f.type == "CREDENTIAL_FORM_DETECTED" for f in flags)
+    
+    # Whitelist discount for legitimate transactional emails
+    is_trusted, trusted_domain = is_trusted_transactional_domain(flags)
+    if is_trusted and raw_score > 0:
+        # Reduce suspicion by 15-25 points for legitimate transactional emails
+        trusted_discount = min(25, raw_score * 0.25)
+        safe_discount += trusted_discount
+        raw_score -= trusted_discount
+    
+    # Additional discount for credential forms on trusted domains
+    if is_trusted and has_credential_form:
+        cred_discount = min(15, raw_score * 0.15)
+        safe_discount += cred_discount
+        raw_score -= cred_discount
+    
     # Co-occurrence bonus (boost score when multiple related flags fire together)
     co_occurrence_bonus = 0.0
     co_occurrence_bonuses = []
@@ -182,7 +265,12 @@ def calculate_score(flags: List[Flag]) -> ScoringResult:
     
     # Check for brand impersonation + urgency
     has_brand_impersonation = any(
-        f.type in ["BRAND_IMPERSONATION", "BRAND_IMPERSONATION_DOMAIN_MISMATCH", "SENDER_LINK_MISMATCH"]
+        f.type in [
+            "BRAND_IMPERSONATION",
+            "BRAND_IMPERSONATION_DOMAIN_MISMATCH",
+            "SENDER_LINK_MISMATCH",
+            "BRAND_IMPERSONATION_URL",   # URL-based brand impersonation
+        ]
         for f in flags
     )
     if has_brand_impersonation and has_urgency:
@@ -195,7 +283,6 @@ def calculate_score(flags: List[Flag]) -> ScoringResult:
         })
     
     # Check for credential form + brand impersonation
-    has_credential_form = any(f.type == "CREDENTIAL_FORM_DETECTED" for f in flags)
     if has_brand_impersonation and has_credential_form:
         bonus = 20
         co_occurrence_bonus += bonus
@@ -203,6 +290,18 @@ def calculate_score(flags: List[Flag]) -> ScoringResult:
             "flags_involved": ["BRAND_IMPERSONATION", "CREDENTIAL_FORM"],
             "bonus": bonus,
             "description": "Brand impersonation with credential form = active phishing",
+        })
+
+    # Check for URL brand impersonation + suspicious TLD
+    has_suspicious_tld = any(f.type == "SUSPICIOUS_TLD" for f in flags)
+    has_brand_impersonation_url = any(f.type == "BRAND_IMPERSONATION_URL" for f in flags)
+    if has_brand_impersonation_url and has_suspicious_tld:
+        bonus = 15
+        co_occurrence_bonus += bonus
+        co_occurrence_bonuses.append({
+            "flags_involved": ["BRAND_IMPERSONATION_URL", "SUSPICIOUS_TLD"],
+            "bonus": bonus,
+            "description": "Brand name in URL + high-risk TLD = phishing domain pattern",
         })
     
     adjusted_score = raw_score + co_occurrence_bonus
@@ -218,6 +317,10 @@ def calculate_score(flags: List[Flag]) -> ScoringResult:
     elif has_urgency and has_new_domain and adjusted_score < 45:
         adjusted_score = 45
         hard_floor_applied = True
+    elif has_brand_impersonation_url and has_suspicious_tld and adjusted_score < 60:
+        # URL contains brand name AND uses a known-phishing TLD → near-certain phishing
+        adjusted_score = 60
+        hard_floor_applied = True
     
     # Normalize to 0-100
     normalized_score = min(100, max(0, int(round(adjusted_score))))
@@ -232,19 +335,49 @@ def calculate_score(flags: List[Flag]) -> ScoringResult:
     
     # Generate top reasons
     reasons = []
-    
-    # Add brand impersonation first (most important)
-    if has_brand_impersonation:
-        reasons.append("Email claims to be from one brand but links to different domain")
-    
-    # Add urgency
-    if has_urgency:
+
+    # Add URL brand impersonation (most specific — surface its detail string)
+    if has_brand_impersonation_url:
+        bi_url_flags = [f for f in flags if f.type == "BRAND_IMPERSONATION_URL"]
+        if bi_url_flags and bi_url_flags[0].detail:
+            reasons.append(bi_url_flags[0].detail[:100])
+        else:
+            reasons.append("URL contains a brand name but the domain is not that brand")
+
+    # Add email-context brand impersonation (only when NOT already covered above)
+    elif has_brand_impersonation:
+        reasons.append("Email claims to be from one brand but links to a different domain")
+
+    # Add suspicious TLD
+    if has_suspicious_tld:
+        tld_flags = [f for f in flags if f.type == "SUSPICIOUS_TLD"]
+        if tld_flags and tld_flags[0].detail:
+            reasons.append(tld_flags[0].detail[:100])
+        else:
+            reasons.append("Domain uses a high-risk TLD commonly associated with phishing")
+
+    # Add URL action keywords (but only if NOT from trusted domain)
+    has_url_action = any(f.type == "URL_ACTION_KEYWORDS" for f in flags)
+    if has_url_action and not is_trusted:
+        kw_flags = [f for f in flags if f.type == "URL_ACTION_KEYWORDS"]
+        if kw_flags and kw_flags[0].detail:
+            reasons.append(kw_flags[0].detail[:100])
+        else:
+            reasons.append("Suspicious action keywords (login/verify/confirm) found in URL path")
+
+    # Add no-HTTPS
+    has_no_https = any(f.type == "NO_HTTPS" for f in flags)
+    if has_no_https:
+        reasons.append("Connection not secure — URL uses HTTP instead of HTTPS")
+
+    # Add urgency language (skip if from trusted domain and just a brand signature)
+    if has_urgency and not (is_trusted and "security" in str(flags).lower()):
         urgency_flags = [f for f in flags if "URGENCY" in f.type]
         if urgency_flags and urgency_flags[0].detail:
             reasons.append(urgency_flags[0].detail[:100])
         else:
             reasons.append("Urgent language detected")
-    
+
     # Add new domain
     if has_new_domain:
         new_domain_flags = [f for f in flags if f.type in ["VERY_NEW_DOMAIN", "NEW_DOMAIN", "WHOIS_UNAVAILABLE"]]
@@ -252,19 +385,19 @@ def calculate_score(flags: List[Flag]) -> ScoringResult:
             reasons.append(new_domain_flags[0].detail[:100])
         else:
             reasons.append("Domain appears to be newly registered")
-    
+
     # Add Reply-To mismatch
     reply_to_mismatch = any(f.type == "REPLY_TO_MISMATCH" for f in flags)
     if reply_to_mismatch:
         reasons.append("Reply-To address differs from From address (common phishing technique)")
-    
-    # Add credential form
-    if has_credential_form:
+
+    # Add credential form (skip if from trusted domain)
+    if has_credential_form and not is_trusted:
         reasons.append("Password input field detected on page")
-    
+
     # Limit to top 5 reasons
     reasons = reasons[:5]
-    
+
     if not reasons:
         reasons = ["No significant phishing indicators detected."]
     

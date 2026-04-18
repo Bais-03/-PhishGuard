@@ -4,6 +4,7 @@ Layer 1 — Local Detectors (< 10ms)
 import re
 import math
 import urllib.parse
+from urllib.parse import urlparse
 from app.models.schemas import Flag, Severity, AnalysisContext
 
 try:
@@ -11,6 +12,37 @@ try:
     HOMOGLYPH_LIB_AVAILABLE = True
 except ImportError:
     HOMOGLYPH_LIB_AVAILABLE = False
+
+# ============================================================
+# URL DETECTION CONSTANTS
+# ============================================================
+
+SUSPICIOUS_TLDS = {
+    "xyz", "top", "click", "link", "work", "date", "men",
+    "club", "online", "live", "site", "tech", "review", "trade",
+    "download", "bid", "loan", "win", "stream", "party", "gq", "ml", "tk"
+}
+
+URL_ACTION_KEYWORDS = [
+    "login", "signin", "verify", "confirm", "secure",
+    "account", "update", "billing", "payment", "credential",
+    "restore", "unlock", "validate", "authenticate"
+]
+
+BRAND_NAMES = [
+    "paypal", "amazon", "google", "microsoft", "apple", "netflix",
+    "facebook", "instagram", "linkedin", "dropbox", "github",
+    "chase", "wellsfargo", "bankofamerica", "citibank"
+]
+
+# Legitimate domains that can have brand names in subdomains
+LEGITIMATE_BRAND_DOMAINS = {
+    "google.com", "accounts.google.com", "myaccount.google.com",
+    "amazon.com", "paypal.com", "microsoft.com", "apple.com",
+    "github.com", "netflix.com", "spotify.com", "dropbox.com",
+    "linkedin.com", "twitter.com", "facebook.com", "instagram.com",
+    "reddit.com", "slack.com", "stripe.com"
+}
 
 
 def check_homoglyphs(domain: str) -> Flag:
@@ -113,8 +145,21 @@ URGENCY_KEYWORDS = [
 
 _URGENCY_RE = [re.compile(p, re.IGNORECASE) for p in URGENCY_KEYWORDS]
 
+# Brand signatures that should NOT be flagged as urgency
+BRAND_SIGNATURES = [
+    "google security", "paypal security", "amazon security",
+    "microsoft security", "apple security", "security alert",
+    "google sign-in", "paypal receipt", "amazon order"
+]
+
 
 def check_urgency_keywords(text: str) -> Flag:
+    # Skip if it's just a brand signature (not real urgency)
+    text_lower = text.lower().strip()
+    for signature in BRAND_SIGNATURES:
+        if signature in text_lower or text_lower == signature:
+            return Flag(type="NO_URGENCY_LANGUAGE", severity=Severity.NONE, score=0, source="content")
+    
     matches = []
     for pattern in _URGENCY_RE:
         m = pattern.search(text)
@@ -125,7 +170,7 @@ def check_urgency_keywords(text: str) -> Flag:
         return Flag(
             type="HIGH_URGENCY_LANGUAGE",
             severity=Severity.HIGH,
-            score=35,  # This is working! Shows +35 in your screenshot
+            score=35,
             detail=f"Multiple urgency phrases detected: {'; '.join(matches[:2])}",
             source="content",
         )
@@ -162,6 +207,103 @@ def check_attachments(attachments: list[dict]) -> list[Flag]:
     return flags
 
 
+# ============================================================
+# NEW URL DETECTION FUNCTIONS
+# ============================================================
+
+def check_suspicious_tld(domain: str) -> Flag:
+    """Flag high-risk TLDs commonly used in phishing."""
+    if not domain:
+        return Flag(type="TLD_OK", severity=Severity.NONE, score=0, source="url_structure")
+    
+    parts = domain.split(".")
+    tld = parts[-1].lower() if len(parts) > 1 else ""
+    
+    if tld in SUSPICIOUS_TLDS:
+        return Flag(
+            type="SUSPICIOUS_TLD",
+            severity=Severity.MEDIUM,
+            score=15,
+            detail=f"Suspicious TLD '.{tld}' commonly used in phishing",
+            source="url_structure",
+        )
+    return Flag(type="TLD_OK", severity=Severity.NONE, score=0, source="url_structure")
+
+
+def check_url_action_keywords(url: str) -> Flag:
+    """Flag suspicious action keywords in URL path or query string."""
+    try:
+        parsed = urlparse(url)
+        path_lower = parsed.path.lower()
+        query_lower = parsed.query.lower()
+
+        found_keywords = []
+        for keyword in URL_ACTION_KEYWORDS:
+            # Check path (existing logic)
+            if f"/{keyword}" in path_lower or path_lower.endswith(f"/{keyword}"):
+                found_keywords.append(keyword)
+            # NEW: also check query string values and keys
+            elif keyword in query_lower:
+                found_keywords.append(keyword)
+
+        if found_keywords:
+            return Flag(
+                type="URL_ACTION_KEYWORDS",
+                severity=Severity.MEDIUM,
+                score=15,
+                detail=f"Suspicious action keywords in URL: {', '.join(found_keywords[:3])}",
+                source="url_structure",
+            )
+    except Exception:
+        pass
+    return Flag(type="URL_ACTION_CLEAN", severity=Severity.NONE, score=0, source="url_structure")
+
+
+def check_brand_in_url(url: str, domain: str) -> Flag:
+    """
+    Check if URL contains a brand name but the actual domain is NOT that brand.
+    Example: https://paypal-verify.xyz/ contains "paypal" but domain is not paypal.com
+    """
+    if not domain:
+        return Flag(type="NO_BRAND_IMPERSONATION", severity=Severity.NONE, score=0, source="url_structure")
+    
+    url_lower = url.lower()
+    domain_lower = domain.lower()
+    
+    # First, check if this is a legitimate domain (allow subdomains of trusted brands)
+    for legit in LEGITIMATE_BRAND_DOMAINS:
+        if domain_lower == legit or domain_lower.endswith(f".{legit}"):
+            return Flag(type="NO_BRAND_IMPERSONATION", severity=Severity.NONE, score=0, source="url_structure")
+    
+    domain_clean = domain.replace("www.", "").split(".")[0] if domain else ""
+    
+    for brand in BRAND_NAMES:
+        if brand in url_lower:
+            # Brand found in URL, check if domain matches
+            if brand not in domain_clean and brand != domain_clean:
+                return Flag(
+                    type="BRAND_IMPERSONATION_URL",
+                    severity=Severity.HIGH,
+                    score=30,
+                    detail=f"URL contains brand '{brand}' but domain is '{domain}'",
+                    source="url_structure",
+                )
+    return Flag(type="NO_BRAND_IMPERSONATION", severity=Severity.NONE, score=0, source="url_structure")
+
+
+def check_no_https(url: str) -> Flag:
+    """Flag URLs that use HTTP instead of HTTPS."""
+    if url.startswith("http://"):
+        return Flag(
+            type="NO_HTTPS",
+            severity=Severity.MEDIUM,
+            score=12,
+            detail="Connection not secure (HTTP instead of HTTPS)",
+            source="url_structure",
+        )
+    return Flag(type="HTTPS_OK", severity=Severity.NONE, score=0, source="url_structure")
+
+
 async def run_layer1(ctx: AnalysisContext) -> list[Flag]:
     flags = []
 
@@ -173,6 +315,12 @@ async def run_layer1(ctx: AnalysisContext) -> list[Flag]:
         flags.append(check_ip_in_url(url))
         domain = urllib.parse.urlparse(url).netloc.lower().split(":")[0]
         flags.append(check_shortened_url(domain))
+        
+        # NEW URL CHECKS
+        flags.append(check_suspicious_tld(domain))
+        flags.append(check_url_action_keywords(url))
+        flags.append(check_brand_in_url(url, domain))
+        flags.append(check_no_https(url))
 
     combined_text = ctx.body_text + ctx.body_html
     if combined_text:
